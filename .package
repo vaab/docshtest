@@ -1,0 +1,6 @@
+NAME="docshtest"
+DESCRIPTION="Doctest for shell commands"
+EMAIL="valentin.lab@kalysto.org"
+AUTHOR="Valentin Lab"
+AUTHOR_EMAIL="$AUTHOR <$EMAIL>"
+FILES="setup.cfg setup.py CHANGELOG.rst docshtest"

@@ -1,0 +1,17 @@
+#!/bin/bash
+
+shtest_opts=()
+
+if [ -z "$DOVIS" -o "$PKG_COVERAGE" ]; then  ## with coverage
+    echo "With coverage support enabled"
+    python="coverage run --include ./docshtest.py -a"
+    shtest_opts+=("-r"  '#\./docshtest\b#'"$coverage"' ./docshtest#')
+else
+    echo "No coverage support"
+    python=python
+fi
+
+$python -m doctest docshtest.py || exit 1
+$python -m doctest README.rst || exit 1
+
+time ./docshtest.py README.rst -r '#\./docshtest\b#'"$python"' ./docshtest.py#' || exit 1

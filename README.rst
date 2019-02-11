@@ -2,9 +2,20 @@
 docshtest
 =========
 
-.. image:: http://img.shields.io/travis/vaab/docshtest/master.svg?style=flat
-   :target: https://travis-ci.org/0k/sunit
+.. image:: https://img.shields.io/pypi/v/docshtest.svg
+    :target: https://pypi.python.org/pypi/docshtest
+
+.. image:: https://img.shields.io/travis/vaab/docshtest/master.svg?style=flat
+   :target: https://travis-ci.org/vaab/docshtest/
    :alt: Travis CI build status
+
+.. image:: https://img.shields.io/appveyor/ci/vaab/docshtest.svg
+   :target: https://ci.appveyor.com/project/vaab/docshtest/branch/master
+   :alt: Appveyor CI build status
+
+.. image:: http://img.shields.io/codecov/c/github/vaab/docshtest.svg?style=flat
+   :target: https://codecov.io/gh/vaab/docshtest/
+   :alt: Test coverage
 
 
 Doctest for Shell - Quick, Slim and Dirty
@@ -14,6 +25,8 @@ Feature
 =======
 
 - Quick way to write doctest in shell
+
+- Works on Windows, Linux, Python 2.7, Python 3+
 
 - Slim because it has no dependencies to other project, one file, in python
 
@@ -32,18 +45,18 @@ This is an early alpha code.
 
 Major concerns and shortcomings:
 
-- end of blocks and final "\n" are not tested correctly
+- end of blocks and final ``\n`` are not tested correctly
 - tests execution in current directory with possible consequences.
-- no support of checking errlvl
-- no support of proper mixed err and stdout content
-- limited to ``bash`` testing
-- rough detection of doctest blocks relying on bash error output. Not
-  sure this is very solid.
+- no support of checking error level
+- no support of proper mixed standard error and standard output content
+- limited to ``bash`` testing (needs ``bash -n`` equivalent)
+- rough detection of ``doctests`` command blocks is relying on ``bash
+  -n`` error output. Not sure this is very solid.
 
 Minor concerns, but would be better without:
 
 - fail on first error hard-written.
-- hard-written support of "<BLANKLINE>"
+- hard-written support of ``<BLANKLINE>``
 
 Possible evolution:
 
@@ -58,7 +71,24 @@ Possible evolution:
 Installation
 ============
 
-No installation method provided yet, just copy the file in your path.
+You don't need to download the GIT version of the code as ``docshtest`` is
+available on the PyPI. So you should be able to run::
+
+    pip install docshtest
+
+If you have downloaded the GIT sources, then you could add install
+the current version via traditional::
+
+    python setup.py install
+
+And if you don't have the GIT sources but would like to get the latest
+master or branch from github, you could also::
+
+    pip install git+https://github.com/vaab/docshtest
+
+Or even select a specific revision (branch/tag/commit)::
+
+    pip install git+https://github.com/vaab/docshtest@master
 
 
 Usage
@@ -70,7 +100,7 @@ QuickStart
 
 ``docshtest`` is a ``doctest`` for shell command. This means it allows
 you to integrate in your documentation some examples of shell code and
-their expected output that will be actually checkable.
+their expected output that will be actually verifiable.
 
 First please notice that these documentation lines you are reading are
 stored in a ``README.rst`` file that will contain very soon some
@@ -79,7 +109,7 @@ examples of how to run ``docshtest`` and what outcome to expect.
 The very first example that comes to mind is to run ``docshtest`` on
 this very documentation::
 
-    ./docshtest README.rst
+    docshtest README.rst
 
 But doing so would generate a infinite loop ! So you can check that
 yourself, and that's done in the CI procedures.
@@ -88,7 +118,7 @@ Let's introduce you the basics of writing your own testable documentation...
 
 So this is how it works::
 
-    $ cat <<EOF > mydoc.rst   ## First test file
+    $ cat <<'EOF' > mydoc.rst   ## First test file
 
     This is standard RST, we can include runnable test blocks::
 
@@ -97,7 +127,7 @@ So this is how it works::
 
     EOF
 
-Note that indentation is required, as well as the ``$ `` (dollar sign
+Note that indentation is required, as well as the ``"$ "`` (dollar sign
 followed by a space) before the command to be executed. Please refer
 to the following section to understand how ``docshtest`` figures out
 the end of your shell code and the start of the output.
@@ -107,9 +137,10 @@ will be matched with the actual command output. If there is a mismatch
 the test will fail, and ``docshtest`` will cancel any remaining tests.
 If it matches, next test block will be executed.
 
-To run our test:
+To run our test::
 
-     $ ./docshtest mydoc.rst
+    $ ./docshtest mydoc.rst
+    #0001 - success (line          4)
 
 
 Multiline Commands
@@ -120,14 +151,14 @@ Multiline commands are detected with a very simple, but dirty method,
 the first line to the shell interpreter, if the shell interpreter
 complains, it'll try again by adding the next line to the output.
 
-This allows to document/test multi-line shell codes like:
+This allows to document/test multi-line shell codes like::
 
     $ cat <<EOF > mydoc.rst   ## First test file
 
     Multiline commands::
 
         $ for a in \$(seq 1 3); do
-            echo "foo$a"
+            echo "foo\$a"
           done
         foo1
         foo2
@@ -135,6 +166,7 @@ This allows to document/test multi-line shell codes like:
 
     EOF
     $ ./docshtest mydoc.rst
+    #0001 - success (lines       4-6)
 
 Please note that the extra indentation for the body of the ``for`` loop or
 the ``done`` is unnecessary, but is recommended for reading::
@@ -144,7 +176,7 @@ the ``done`` is unnecessary, but is recommended for reading::
     Multiline commands::
 
         $ for a in \$(seq 1 3); do
-          echo "foo$a"
+          echo "foo\$a"
         done
         foo1
         foo2
@@ -152,7 +184,137 @@ the ``done`` is unnecessary, but is recommended for reading::
 
     EOF
     $ ./docshtest mydoc.rst
+    #0001 - success (lines       4-6)
 
+
+Failing test will display both expected output and current output::
+
+    $ cat <<EOF > mydoc.rst   ## First test file
+
+    Multiline commands::
+
+        $ for a in \$(seq 1 3); do
+          echo "foo\$a"
+        done
+        foo1
+        foo4
+        foo3
+
+    EOF
+    $ ./docshtest mydoc.rst
+    #0001 - failure (lines       4-6):
+      command:
+      | for a in $(seq 1 3); do
+      |   echo "foo$a"
+      | done
+      expected:
+      | foo1
+      | foo4
+      | foo3
+      |
+      output:
+      | foo1
+      | foo2
+      | foo3
+      |
+
+But note that if these outputs are bigger, a standard unified diff will be
+printed::
+
+    $ cat <<EOF > mydoc.rst   ## First test file
+
+    Multiline commands::
+
+        $ for a in \$(seq 1 6); do
+          echo "foo\$a"
+        done
+        foo1
+        foo3
+        foo4
+        foo5
+        foo6
+
+    EOF
+    $ ./docshtest mydoc.rst
+    #0001 - failure (lines       4-6):
+      command:
+      | for a in $(seq 1 6); do
+      |   echo "foo$a"
+      | done
+      expected:
+      | foo1
+      | foo3
+      | foo4
+      | foo5
+      | foo6
+      |
+      output:
+      | foo1
+      | foo2
+      | foo3
+      | foo4
+      | foo5
+      | foo6
+      |
+      diff:
+      --- expected
+      +++ output
+      @@ -1,4 +1,5 @@
+       foo1
+      +foo2
+       foo3
+       foo4
+       foo5
+
+
+Tinkering all executed code
+---------------------------
+
+You can transform all executed code before execution thanks to
+``--regex REGEX`` (or ``-r REGEX``) option::
+
+    $ cat <<'EOF' > mydoc.rst   ## First test file
+
+    Our tested command is 'foo'
+
+        $ foo 'hello world'
+        hello world
+
+    EOF
+    $ ./docshtest -r '#\bfoo\b#echo#' mydoc.rst
+    #0001 - success (line          4)
+
+
+Conditional Tests
+-----------------
+
+You might want to have conditional tests, that are triggered only
+on if specific test succeeds. This feature uses ``meta`` commands
+that are specified as shell comments in the given block::
+
+    $ cat <<'EOF' > mydoc.rst
+
+    Our tested command is 'foo'
+
+        $ echo $ENVVAR       ## docshtest: if-success-set VAR_WAS_SET
+        0
+        $ echo 'var is set'  ## docshtest: ignore-if VAR_WAS_SET
+        SHOULDFAIL
+        $ echo 'var is not set'  ## docshtest: ignore-if-not VAR_WAS_SET
+        SHOULDFAIL
+
+    EOF
+    $ ENVVAR=0 ./docshtest mydoc.rst
+    #0001 - ignored (line          4): if-success-set VAR_WAS_SET
+    #0002 - ignored (line          6): ignore-if VAR_WAS_SET
+    #0003 - failure (line          8):
+      command: "echo 'var is not set'  ## docshtest: ignore-if-not VAR_WAS_SET"
+      expected:
+      | SHOULDFAIL
+      |
+      output:
+      | var is not set
+      |
 
 
 Command line
@@ -182,9 +344,14 @@ Command line
     Examples:
 
          ## run tests but replace executable on-the-fly for coverage support
-         docshtest README.rst -r '/\bshyaml\b/coverage run shyaml.py/'
+         docshtest README.rst -r '/\bdocshtest\b/coverage run docshtest.py/'
     <BLANKLINE>
     <BLANKLINE>
+
+First argument is necessary::
+
+    $ ./docshtest
+    Error: please provide a rst filename as argument. (use '--help' option to get usage info)
 
 
 Contributing
