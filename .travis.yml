@@ -24,6 +24,7 @@ dist_check:
     exclude:
       - ["v:3.7", "pkg:old"]  ## old version is breaking python 3.7 pkg_resources
       - ["v:3.6", "pkg:old"]  ## old version is breaking python 3.6 pkg_resources
+      - ["v:2.7", "venv:on"]  ## virtualenv doesn't support v2.7 anymore
   tests:
   - label: install
     matrix:

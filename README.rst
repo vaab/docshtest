@@ -308,12 +308,41 @@ that are specified as shell comments in the given block::
     #0001 - ignored (line          4): if-success-set VAR_WAS_SET
     #0002 - ignored (line          6): ignore-if VAR_WAS_SET
     #0003 - failure (line          8):
-      command: "echo 'var is not set'  ## docshtest: ignore-if-not VAR_WAS_SET"
+      command:
+      | echo 'var is not set'  ## docshtest: ignore-if-not VAR_WAS_SET
       expected:
       | SHOULDFAIL
       |
       output:
       | var is not set
+      |
+
+Encoding
+--------
+
+``docshtest`` will assume everything is "UTF-8"::
+
+    $ cat <<'EOF' > mydoc.rst
+
+    Our tested command is 'foo'
+
+        $ echo "éà"
+        éà
+        $ echo "é"
+        e
+
+    EOF
+
+    $ ./docshtest mydoc.rst
+    #0001 - success (line          4)
+    #0002 - failure (line          6):
+      command:
+      | echo "é"
+      expected:
+      | e
+      |
+      output:
+      | é
       |
 
 
