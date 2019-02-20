@@ -12,7 +12,10 @@ import os.path
 import subprocess
 import difflib
 import threading
+import locale
 
+
+from io import open
 
 try:
     from Queue import Queue, Empty
@@ -24,6 +27,15 @@ PY3 = sys.version_info[0] >= 3
 WIN32 = sys.platform == 'win32'
 
 EXNAME = os.path.basename(__file__ if WIN32 else sys.argv[0])
+
+## Note that locale.getpreferredencoding() does NOT follow
+## PYTHONIOENCODING by default, but ``sys.stdout.encoding`` does. In
+## PY2, ``sys.stdout.encoding`` without PYTHONIOENCODING set does not
+## get any values set in subshells.  However, if _preferred_encoding
+## is not set to utf-8, it leads to encoding errors.
+_preferred_encoding = os.environ.get("PYTHONIOENCODING") or \
+                      locale.getpreferredencoding()
+
 
 for ext in (".py", ".pyc", ".exe", "-script.py", "-script.pyc"):
     if EXNAME.endswith(ext):
@@ -259,10 +271,7 @@ def run_and_check(command, expected_output):  ## noqa: C901
 
 def format_failed_test(message, command, output, expected):
     formatted = []
-    if "\n" in command:
-        formatted.append("command:\n%s" % indent(command, "| "))
-    else:
-        formatted.append("command: %r" % command)
+    formatted.append("command:\n%s" % indent(command, "| "))
     formatted.append("expected:\n%s" % indent(expected, "| ").strip())
     formatted.append("output:\n%s" % indent(output, "| ").strip())
     if len(expected.splitlines() + output.splitlines()) > 10:
@@ -318,7 +327,7 @@ def shtest_runner(lines, regex_patterns):
         try:
             run_and_check(command_block, "".join(line for _, line in lines))
         except UnmatchedLine as e:
-            print(format_failed_test(
+            safe_print(format_failed_test(
                 "#%04d - failure (%15s):"
                 % (block_nb + 1, _lines(start_line_nb, stop_line_nb)),
                 command_block,
@@ -364,6 +373,15 @@ def split_quote(s, split_char='/', quote='\\'):
                 buf += quote
         buf += char
     yield buf
+
+
+def safe_print(content):
+    if not PY3:
+        if isinstance(content, unicode):
+            content = content.encode(_preferred_encoding)
+
+    print(content, end='')
+    sys.stdout.flush()
 
 
 def main(args):
