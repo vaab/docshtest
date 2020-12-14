@@ -674,7 +674,7 @@ def main(args):
             pattern = args[idx + 1]
             del args[idx + 1]
             del args[idx]
-            if re.match('^[a-zA-Z1-9]$', pattern[0]):
+            if re.match('^[a-zA-Z0-9]$', pattern[0]):
                 print("Error: regex %s should start with a delimiter char, "
                       "not an alphanumerical char." % pattern)
                 print(USAGE)
