@@ -382,6 +382,11 @@ First argument is necessary::
     $ ./docshtest
     Error: please provide a rst filename as argument. (use '--help' option to get usage info)
 
+And of course it should be the path of a file::
+
+    $ ./docshtest notexistent
+    Error: file 'notexistent' not found.
+
 
 Contributing
 ============

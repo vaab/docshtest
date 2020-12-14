@@ -696,7 +696,7 @@ def main(args):
         exit(1)
     filename = args[0]
     if not os.path.exists(filename):
-        print("Error: file %r doesn't exists." % filename)
+        print("Error: file %r not found." % filename)
         exit(1)
     shtest_runner(open(filename, encoding=_preferred_encoding),
                   regex_patterns=patterns)
