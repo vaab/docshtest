@@ -26,7 +26,7 @@ Feature
 
 - Quick way to write doctest in shell
 
-- Works on Windows, Linux, Python 2.7, Python 3+
+- Works on Windows, Linux, Python 2.7, Python 3.5+
 
 - Slim because it has no dependencies to other project, one file, in python
 
@@ -64,7 +64,6 @@ Possible evolution:
 - support of python file (by extracting docs before)
 - integration in nosetests ? is it possible ?
 - colorize output ?
-- move to standalone full fledged program ?
 - coverage integration ?
 
 
@@ -111,10 +110,10 @@ this very documentation::
 
     docshtest README.rst
 
-But doing so would generate a infinite loop ! So you can check that
-yourself, and that's done in the CI procedures.
+You can check that yourself, and that's done in the CI procedures.
 
-Let's introduce you the basics of writing your own testable documentation...
+Let's introduce you the basics of writing your own testable
+documentation...
 
 So this is how it works::
 
@@ -316,6 +315,7 @@ that are specified as shell comments in the given block::
       output:
       | var is not set
       |
+
 
 Encoding
 --------
