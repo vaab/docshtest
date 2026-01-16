@@ -142,6 +142,80 @@ To run our test::
     #0001 - success (line          4)
 
 
+Org-mode Support
+----------------
+
+``docshtest`` also supports Org-mode files using ``#+BEGIN_SRC docshtest``
+blocks::
+
+    $ cat <<'EOF' > mydoc.org
+    #+BEGIN_SRC docshtest
+    $ echo 'hello org'
+    hello org
+    #+END_SRC
+    EOF
+    $ ./docshtest mydoc.org
+    #0001 - success (line          2)
+
+Multiline commands work the same way in Org-mode::
+
+    $ cat <<'EOF' > mydoc.org
+    #+BEGIN_SRC docshtest
+    $ for i in 1 2 3; do
+        echo "num $i"
+      done
+    num 1
+    num 2
+    num 3
+    #+END_SRC
+    EOF
+    $ ./docshtest mydoc.org
+    #0001 - success (lines       2-4)
+
+Multiple test blocks in one Org file::
+
+    $ cat <<'EOF' > mydoc.org
+    First block:
+
+    #+BEGIN_SRC docshtest
+    $ echo 'first'
+    first
+    #+END_SRC
+
+    Second block:
+
+    #+BEGIN_SRC docshtest
+    $ echo 'second'
+    second
+    #+END_SRC
+    EOF
+    $ ./docshtest mydoc.org
+    #0001 - success (line          4)
+    #0002 - success (line         11)
+
+Meta-commands work identically in Org-mode::
+
+    $ cat <<'EOF' > mydoc.org
+    #+BEGIN_SRC docshtest
+    $ echo "test"  ## docshtest: if-success-set TEST_OK
+    test
+    #+END_SRC
+    EOF
+    $ ./docshtest mydoc.org
+    #0001 - ignored (line          2): if-success-set TEST_OK
+
+Org-mode keywords are case-insensitive::
+
+    $ cat <<'EOF' > mydoc.org
+    #+begin_src docshtest
+    $ echo 'lowercase'
+    lowercase
+    #+end_src
+    EOF
+    $ ./docshtest mydoc.org
+    #0001 - success (line          2)
+
+
 Multiline Commands
 ------------------
 
@@ -316,6 +390,7 @@ that are specified as shell comments in the given block::
       | var is not set
       |
 
+Notice that you should put them on the 
 
 Encoding
 --------
@@ -344,6 +419,32 @@ Encoding
       output:
       | é
       |
+
+
+Escaping Expected Output
+------------------------
+
+If the expected output of a command starts with ``$ `` (which would
+normally be interpreted as a new command), you can escape it with a
+backslash::
+
+    $ echo '$ hello'
+    \$ hello
+
+To get a literal backslash at the start of expected output, escape it
+with another backslash::
+
+    $ echo '\$ hello'
+    \\$ hello
+
+Multiple escapes can be chained::
+
+    $ echo '\\ starts with backslash'
+    \\\\ starts with backslash
+
+Note that escaping only applies at the very start of a line and only
+for ``$`` and ``\`` characters. Backslashes elsewhere in the line are
+not affected.
 
 
 Command line
@@ -391,7 +492,7 @@ And of course it should be the path of a file::
 Contributing
 ============
 
-Any suggestion or issue is welcome. Push request are very welcome,
+Any suggestions or issues are welcome. Push requests are very welcome,
 please check out the guidelines.
 
 
@@ -417,7 +518,7 @@ it'll take less time if you follow the following guidelines:
 
 If you have some questions about guidelines which is not answered here,
 please check the current ``git log``, you might find previous commit that
-would show you how to deal with your issue.
+shows you how to deal with your issue.
 
 
 License

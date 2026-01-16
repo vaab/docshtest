@@ -426,6 +426,35 @@ def chomp(s):
         return ''
 
 
+def unescape_expected_line(line):
+    r"""Unescape \$ and \\ at start of expected output line.
+
+    This allows expected output to start with $ without being
+    detected as a command.
+
+        >>> unescape_expected_line("\\$ foo\n")
+        '$ foo\n'
+        >>> unescape_expected_line("\\\\ foo\n")
+        '\\ foo\n'
+        >>> unescape_expected_line("\\\\\\$ foo\n")
+        '\\$ foo\n'
+        >>> unescape_expected_line("no escape\n")
+        'no escape\n'
+        >>> unescape_expected_line("\\n not escape\n")
+        '\\n not escape\n'
+
+    """
+    result = []
+    i = 0
+    while i < len(line) and line[i] == '\\':
+        if i + 1 < len(line) and line[i + 1] in ('$', '\\'):
+            result.append(line[i + 1])
+            i += 2
+        else:
+            break
+    return ''.join(result) + line[i:]
+
+
 def get_docshtest_blocks(lines):
     """Returns an iterator of shelltest blocks from an iterator of lines"""
 
@@ -444,11 +473,18 @@ def get_docshtest_blocks(lines):
                 line = line[4:]
         if line.startswith("$ ") or block:
             if line.startswith("$ "):
-                line = line[2:]
                 if block:
-                    yield block[:-consecutive_empty] \
-                          if consecutive_empty else block
-                    block = []
+                    # Check if current command is syntactically complete
+                    command_so_far = "".join(l for _, l in block)
+                    if valid_syntax(command_so_far):
+                        yield block[:-consecutive_empty] \
+                              if consecutive_empty else block
+                        block = []
+                        consecutive_empty = 0
+                        line = line[2:]  # New command, strip $ prefix
+                    # else: incomplete (e.g. heredoc), keep $ line as content
+                else:
+                    line = line[2:]  # First command, strip $ prefix
             if is_empty_line:
                 consecutive_empty += 1
             else:
@@ -457,6 +493,74 @@ def get_docshtest_blocks(lines):
     if block:
         yield block[:-consecutive_empty] \
               if consecutive_empty else block
+
+
+ORG_BEGIN_REGEX = re.compile(r'^#\+BEGIN_SRC\s+docshtest\s*$', re.IGNORECASE)
+ORG_END_REGEX = re.compile(r'^#\+END_SRC\s*$', re.IGNORECASE)
+
+
+def get_docshtest_blocks_org(lines):
+    """Returns an iterator of shelltest blocks from Org-mode formatted lines
+
+    Block markers can be indented (standard Org-mode behavior).
+    Use comma escaping (,#+BEGIN_SRC) for embedded blocks in heredocs.
+    """
+    in_block = False
+    block = []
+    consecutive_empty = 0
+    block_indent = 0  # Track indentation of the block
+
+    for line_nb, line in enumerate(lines):
+        if not in_block:
+            stripped = line.lstrip()
+            if ORG_BEGIN_REGEX.match(stripped):
+                in_block = True
+                block = []
+                consecutive_empty = 0
+                block_indent = len(line) - len(stripped)
+            continue
+
+        stripped = line.lstrip()
+        if ORG_END_REGEX.match(stripped):
+            in_block = False
+            if block:
+                yield block[:-consecutive_empty] if consecutive_empty else block
+                block = []
+            continue
+
+        # Strip block indentation from content lines
+        if len(line) >= block_indent:
+            line = line[block_indent:]
+
+        # Inside block: commands must start with "$ " at column 0 (after indent strip)
+        # Check for command BEFORE stripping comma escape
+        is_empty_line = not line.strip()
+        is_command = line.startswith("$ ")
+        # Strip Org comma escape: ",..." -> "..." (standard Org escaping for embedded blocks)
+        if line.startswith(","):
+            line = line[1:]
+        if is_command or block:
+            if is_command:
+                if block:
+                    # Check if current command is syntactically complete
+                    command_so_far = "".join(l for _, l in block)
+                    if valid_syntax(command_so_far):
+                        yield block[:-consecutive_empty] if consecutive_empty else block
+                        block = []
+                        consecutive_empty = 0
+                        line = line[2:]  # New command, strip $ prefix
+                    # else: incomplete (e.g. heredoc), keep $ line as content
+                else:
+                    line = line[2:]  # First command, strip $ prefix
+            # Non-command lines kept as-is (heredoc content needs whitespace)
+            if is_empty_line:
+                consecutive_empty += 1
+            else:
+                consecutive_empty = 0
+            block.append((line_nb + 1, line))
+
+    if block:
+        yield block[:-consecutive_empty] if consecutive_empty else block
 
 
 def bash_iter(cmd, syntax_check=False):
@@ -512,7 +616,7 @@ def run_and_check(command, expected_output):  ## noqa: C901
     meta_commands = list(get_meta_commands(command))
     for meta_command in meta_commands:
         if meta_command[0] == "ignore-if":
-            if meta_command[1] in __ENV__:
+            if any(k in __ENV__ for k in meta_command[1].split(",")):
                 raise Ignored(*meta_command)
         if meta_command[0] == "ignore-if-not":
             if meta_command[1] not in __ENV__:
@@ -578,13 +682,20 @@ def get_meta_commands(command):
         yield cmd.split(' ')
 
 
-def shtest_runner(lines, regex_patterns):
+def get_docshtest_blocks_for_file(filename, lines):
+    """Dispatch to appropriate parser based on file extension"""
+    if filename.endswith('.org'):
+        return get_docshtest_blocks_org(lines)
+    return get_docshtest_blocks(lines)
+
+
+def shtest_runner(filename, lines, regex_patterns):
     def _lines(start_line_nb, stop_line_nb):
         return (("lines %9s" % ("%s-%s" % (start_line_nb, stop_line_nb)))
                 if start_line_nb != stop_line_nb else
                 ("line %10s" % start_line_nb))
 
-    for block_nb, block in enumerate(get_docshtest_blocks(lines)):
+    for block_nb, block in enumerate(get_docshtest_blocks_for_file(filename, lines)):
         lines = iter(block)
         command_block = ""
         start_line_nb = None
@@ -601,8 +712,28 @@ def shtest_runner(lines, regex_patterns):
                              % (indent(command_block, "   | ")))
         command_block = command_block.rstrip("\n\r")
         command_block = apply_regex(regex_patterns, command_block)
+        # For Org files, dedent expected output (strip common leading whitespace)
+        # This allows indenting expected output to avoid $ being parsed as command
+        if filename.endswith('.org'):
+            output_lines = [line for _, line in lines]
+            # Find minimum indent (excluding empty lines)
+            min_indent = None
+            for line in output_lines:
+                if line.strip():  # non-empty line
+                    line_indent = len(line) - len(line.lstrip())
+                    if min_indent is None or line_indent < min_indent:
+                        min_indent = line_indent
+            min_indent = min_indent or 0
+            expected_output = "".join(
+                unescape_expected_line(
+                    line[min_indent:] if len(line) > min_indent else line)
+                for line in output_lines
+            )
+        else:
+            expected_output = "".join(
+                unescape_expected_line(line) for _, line in lines)
         try:
-            run_and_check(command_block, "".join(line for _, line in lines))
+            run_and_check(command_block, expected_output)
         except UnmatchedLine as e:
             safe_print(format_failed_test(
                 "#%04d - failure (%15s):"
@@ -698,7 +829,8 @@ def main(args):
     if not os.path.exists(filename):
         print("Error: file %r not found." % filename)
         exit(1)
-    shtest_runner(open(filename, encoding=_preferred_encoding),
+    shtest_runner(filename,
+                  open(filename, encoding=_preferred_encoding),
                   regex_patterns=patterns)
 
 
